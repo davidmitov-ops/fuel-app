@@ -60,3 +60,4 @@ main { padding: 14px 12px 90px; }
 }
 #refresh.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+footer { text-align:center; color:var(--dim); font-size:11px; padding:8px 0 90px; }

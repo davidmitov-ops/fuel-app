@@ -308,11 +308,29 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         self.wfile.write(body)
 
+    # crude per-IP rate limit: 60 req/min, enough for humans, deters scrapers
+    _HITS = {}
+    def _rate_ok(self):
+        now = time.time()
+        ip = self.client_address[0]
+        hits = Handler._HITS.setdefault(ip, [])
+        hits[:] = [t for t in hits if now - t < 60]
+        if len(hits) >= 60:
+            return False
+        hits.append(now)
+        return True
+
     def do_GET(self):  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
+        if not self._rate_ok():
+            self._send(429, b"slow down", "text/plain")
+            return
         try:
             if parsed.path == "/api/stations":
                 q = urllib.parse.parse_qs(parsed.query)
