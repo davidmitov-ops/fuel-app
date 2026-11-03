@@ -12,6 +12,7 @@ Run:  python3 server.py   (default port 8788)
 import json
 import math
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -356,6 +357,92 @@ def nearby(lat, lng, fuel, km):
     res.sort(key=lambda x: (x["price"], x["distance_km"]))
     return res[:40], len(res)
 
+# ---------------- trip route planning ----------------
+
+def resolve_place(q):
+    """Return (lat, lng, label). Accepts 'lat,lng', a Google Maps URL, or free text (Nominatim)."""
+    q = (q or "").strip()
+    if not q:
+        return None
+    if q.lower() == "gps":
+        return None
+    m = re.search(r"[-+]?\d+\.\d+,\s*[-+]?\d+\.\d+", q)
+    if m:  # works for plain coords and Google URLs (@lat,lng or !3dlat!4dlng patterns)
+        a, b = m.group(0).split(",")
+        return float(a), float(b), q[:40]
+    name = urllib.parse.quote(q)
+    try:
+        d = _get_json("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + name,
+                      headers={"User-Agent": UA}, retries=1, timeout=15)
+        if d:
+            return float(d[0]["lat"]), float(d[0]["lon"]), (d[0].get("display_name") or "")[:40]
+    except Exception as e:  # noqa: BLE001
+        print("geocode failed:", e)
+    return None
+
+def osrm_route(a, b):
+    """Road geometry [[lat,lng],...] + distance km via public OSRM; None on failure."""
+    url = "https://router.project-osrm.org/route/v1/driving/%f,%f;%f,%f?overview=simplified&geometries=geojson" % (
+        a[1], a[0], b[1], b[0])
+    try:
+        d = _get_json(url, retries=1, timeout=20)
+        route = d["routes"][0]
+        coords = [[c[1], c[0]] for c in route["geometry"]["coordinates"]]
+        return coords, route["distance"] / 1000.0
+    except Exception as e:  # noqa: BLE001
+        print("osrm failed:", e)
+        return None
+
+def route_stations(a, b, fuel, detour_km):
+    """Stations within detour_km of the road path, ordered along the trip, deduped."""
+    geo = osrm_route(a, b)
+    if geo:
+        path, total_km = geo
+    else:  # straight-line fallback, sampled
+        path, total_km = [[a[0] + (b[0] - a[0]) * i / 20, a[1] + (b[1] - a[1]) * i / 20] for i in range(21)], \
+                         haversine(a[0], a[1], b[0], b[1])
+    # cumulative distance along path
+    cum, acc = [0.0], 0.0
+    for i in range(1, len(path)):
+        acc += haversine(path[i - 1][0], path[i - 1][1], path[i][0], path[i][1])
+        cum.append(acc)
+    # sample a point every ~10 km, plus the endpoints
+    samples, next_km = [], 0.0
+    for i, c in enumerate(cum):
+        if c >= next_km or i == len(cum) - 1:
+            samples.append((path[i], c))
+            next_km = c + 10.0
+    stations = all_stations()
+    seen, out = {}, []
+    for (pt, along) in samples:
+        for s in stations:
+            if not s.get("lat") or s["id"] in seen:
+                continue
+            price = None
+            for cand in (fuel, "E10" if fuel == "U91" else None, "Diesel" if fuel == "DL" else None):
+                if cand and cand in s["prices"]:
+                    price = s["prices"][cand]["price"]
+                    break
+            if price is None:
+                continue
+            d = haversine(pt[0], pt[1], float(s["lat"]), float(s["lng"]))
+            if d > detour_km:
+                continue
+            if s["id"] not in seen or d < seen[s["id"]][1]:  # keep closest approach
+                seen[s["id"]] = (along, d)
+                out.append({"id": s["id"], "name": s["name"], "brand": s["brand"],
+                            "address": s["address"], "suburb": s["suburb"], "state": s["state"],
+                            "lat": float(s["lat"]), "lng": float(s["lng"]), "price": price,
+                            "along_km": round(along, 0), "detour_km": round(d, 1)})
+    # order by first appearance along route, cheapest-first within 15 km bands is overkill; keep simple
+    out.sort(key=lambda r: (r["along_km"], r["price"]))
+    # dedupe repeats from overlapping samples
+    ded = {}
+    for r in out:
+        ded[r["id"]] = r
+    res = sorted(ded.values(), key=lambda r: (r["along_km"], r["price"]))
+    return res[:60], round(total_km), [[p[0], p[1]] for p in path]
+
 # ---------------- HTTP ----------------
 
 CTYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript",
@@ -404,6 +491,26 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps({"results": results, "total": total}).encode()
                 self._send(200, body, "application/json")
                 return
+            if parsed.path == "/api/route":
+                q = urllib.parse.parse_qs(parsed.query)
+                frm, to = (q.get("from") or [""])[0], (q.get("to") or [""])[0]
+                fuel = (q.get("fuel") or ["U91"])[0].upper()
+                detour = float((q.get("detour") or ["5"])[0])
+                A = None
+                if (q.get("flat") and q.get("flng")):
+                    A = (float(q["flat"][0]), float(q["flng"][0]), "GPS")
+                else:
+                    A = resolve_place(frm)
+                B = resolve_place(to)
+                if not A or not B:
+                    body = json.dumps({"error": "could not resolve places"}).encode()
+                    self._send(200, body, "application/json")
+                    return
+                stations, total_km, path = route_stations(A[:2], B[:2], fuel, detour)
+                body = json.dumps({"results": stations, "route_km": total_km, "path": path}).encode()
+                self._send(200, body, "application/json")
+                return
+
             if parsed.path == "/api/status":
                 body = json.dumps({
                     "nsw_key": nsw_available(),

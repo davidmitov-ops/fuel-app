@@ -17,6 +17,12 @@
   <div class="sub" id="status">finding you…</div>
 </header>
 
+<nav class="tabs">
+  <button id="tabNearby" class="on">Nearby</button>
+  <button id="tabTrip">Trip</button>
+</nav>
+
+<section id="nearbyPane">
 <nav class="chips" id="fuelChips">
   <button data-fuel="U91" class="on">91</button>
   <button data-fuel="U95">95</button>
@@ -34,6 +40,23 @@
 </nav>
 
 <main id="list"></main>
+</section>
+
+<section id="tripPane" class="hidden">
+  <div class="tripbar">
+    <input id="fromInput" placeholder="From (blank = my location)" autocomplete="off">
+    <input id="toInput" placeholder="Where to? suburb or address" autocomplete="off">
+    <nav class="chips small" id="detourChips">
+      <button data-km="2">2 km off-route</button>
+      <button data-km="5" class="on">5 km</button>
+      <button data-km="15">15 km</button>
+      <button id="goTrip" class="go">Find fuel →</button>
+    </nav>
+  </div>
+  <div id="map"></div>
+  <div id="tripStatus" class="sub"></div>
+  <main id="tripList"></main>
+</section>
 
 <div id="empty" class="empty hidden">
   <p>No stations found.</p>
@@ -44,6 +67,8 @@
 
 <footer>Data: NSW FuelCheck, QLD Gov, WA FuelWatch. Personal app, no tracking.</footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="app.js"></script>
 </body>
 </html>

@@ -101,6 +101,100 @@ document.querySelectorAll("#kmChips button").forEach((b) => {
 });
 $("#refresh").onclick = load;
 
+// ---- tabs ----
+function showTab(t) {
+  $("#nearbyPane").classList.toggle("hidden", t !== "nearby");
+  $("#tripPane").classList.toggle("hidden", t !== "trip");
+  $("#tabNearby").classList.toggle("on", t === "nearby");
+  $("#tabTrip").classList.toggle("on", t === "trip");
+  if (t === "trip" && map) setTimeout(() => map.invalidateSize(), 50);
+  if (t === "nearby") load();
+}
+$("#tabNearby").onclick = () => showTab("nearby");
+$("#tabTrip").onclick = () => showTab("trip");
+
+// ---- trip planner ----
+let map = null, routeLine = null, markers = [];
+let detour = localStorage.detour || "5";
+
+function initMap() {
+  if (map) return map;
+  map = L.map("map").setView([-33.9, 151.2], 10);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: "© OpenStreetMap",
+  }).addTo(map);
+  return map;
+}
+
+function priceColor(p, prices) {
+  const lo = Math.min(...prices), hi = Math.max(...prices);
+  if (p === lo) return "#2ecc71";
+  if (p === hi) return "#e67e22";
+  return "#3498db";
+}
+
+function renderTrip(res) {
+  const tl = $("#tripList");
+  tl.innerHTML = "";
+  markers.forEach((m) => m.remove()); markers = [];
+  const map_ = initMap();
+  if (routeLine) routeLine.remove();
+  if (window._tripPath && window._tripPath.length > 1) {
+    routeLine = L.polyline(window._tripPath, { color: "#4da3ff", weight: 5, opacity: 0.7 }).addTo(map_);
+    map_.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
+  }
+  const prices = res.map(r => r.price);
+  for (const r of res) {
+    const m = L.circleMarker([r.lat, r.lng], {
+      radius: 8, fillColor: priceColor(r.price, prices), color: "#fff", weight: 2, fillOpacity: 1,
+    }).addTo(map_);
+    m.bindTooltip(`${r.brand || r.name} ${r.price}¢ · +${r.detour_km} km`);
+    m.on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
+    markers.push(m);
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML =
+      '<div class="info">' +
+      '<div class="name">' + esc(r.brand || r.name || "?") + '</div>' +
+      '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route</div>' +
+      "</div>" +
+      '<div class="price">' + r.price.toFixed(1) + "<span style='font-size:12px;font-weight:400'> c/L</span></div>";
+    div.addEventListener("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
+    tl.appendChild(div);
+  }
+}
+
+async function planTrip() {
+  const to = $("#toInput").value.trim();
+  if (!to) { $("#tripStatus").textContent = "where to?"; return; }
+  $("#tripStatus").textContent = "planning route…";
+  const q = new URLSearchParams({ to, fuel, detour });
+  const f = $("#fromInput").value.trim();
+  if (!f && coords) { q.set("flat", coords.lat); q.set("flng", coords.lng); }
+  else q.set("from", f);
+  try {
+    const r = await fetch("/api/route?" + q);
+    const d = await r.json();
+    if (d.error) { $("#tripStatus").textContent = d.error; return; }
+    window._tripPath = d.path || [];
+    $("#tripStatus").textContent = d.results.length + " stations along " + d.route_km + " km (within " + detour + " km)";
+    renderTrip(d.results || []);
+    if (!d.results.length) $("#tripStatus").textContent += " — try a wider detour";
+  } catch (e) {
+    $("#tripStatus").textContent = "route failed, try again";
+  }
+}
+$("#goTrip").onclick = planTrip;
+$("#toInput").addEventListener("keydown", (e) => e.key === "Enter" && planTrip());
+document.querySelectorAll("#detourChips button[data-km]").forEach((b) => {
+  if (b.dataset.km === String(detour)) b.classList.add("on");
+  b.onclick = () => {
+    detour = b.dataset.km; localStorage.detour = detour;
+    document.querySelectorAll("#detourChips button[data-km]").forEach((x) => x.classList.toggle("on", x === b));
+    if ($("#tripStatus").textContent.includes("km into")) planTrip();
+  };
+});
+
 // one-time lat/lng override for testing: #lat,lng in URL
 const h = location.hash.match(/(-?\d+\.\d+),(-?\d+\.\d+)/);
 if (h) { coords = { lat: +h[1], lng: +h[2] }; load(); }
