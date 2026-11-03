@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1115">
+<title>Cheap Fuel</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Cheap Fuel</h1>
+  <div class="sub" id="status">finding you…</div>
+</header>
+
+<nav class="chips" id="fuelChips">
+  <button data-fuel="U91" class="on">91</button>
+  <button data-fuel="U95">95</button>
+  <button data-fuel="U98">98</button>
+  <button data-fuel="DL">Diesel</button>
+  <button data-fuel="LPG">LPG</button>
+</nav>
+
+<nav class="chips small" id="kmChips">
+  <span class="lbl">within</span>
+  <button data-km="2">2 km</button>
+  <button data-km="5" class="on">5 km</button>
+  <button data-km="10">10 km</button>
+  <button data-km="25">25 km</button>
+</nav>
+
+<main id="list"></main>
+
+<div id="empty" class="empty hidden">
+  <p>No stations found.</p>
+  <button onclick="locate()">Try again</button>
+</div>
+
+<button id="refresh" title="Refresh">&#8635;</button>
+
+<script src="app.js"></script>
+</body>
+</html>

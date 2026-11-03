@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cheap-fuel-au
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: python3 server.py
+    envVars:
+      - key: PORT
+        value: 10000
+    # secrets (nsw keys) are baked into config.json in the repo; private repo

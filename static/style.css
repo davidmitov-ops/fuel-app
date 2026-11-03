@@ -1,0 +1,62 @@
+:root {
+  --bg: #0f1115;
+  --card: #1a1e26;
+  --card2: #212733;
+  --txt: #e8eaf0;
+  --dim: #9aa3b2;
+  --accent: #4cc38a;
+  --gold: #f5c451;
+}
+* { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--txt);
+  font: 16px/1.45 -apple-system, "SF Pro Text", Roboto, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+header {
+  padding: calc(env(safe-area-inset-top) + 14px) 18px 6px;
+  position: sticky; top: 0; background: var(--bg); z-index: 5;
+}
+h1 { font-size: 22px; font-weight: 700; letter-spacing: .2px; }
+.sub { color: var(--dim); font-size: 13px; margin-top: 2px; }
+.chips {
+  display: flex; gap: 8px; padding: 10px 16px 2px; overflow-x: auto;
+  position: sticky; top: 54px; background: var(--bg); z-index: 4;
+}
+.chips.small { top: 104px; padding-top: 4px; }
+.chips .lbl { color: var(--dim); font-size: 13px; align-self: center; }
+.chips button {
+  flex: 0 0 auto; border: 0; background: var(--card); color: var(--dim);
+  padding: 9px 16px; border-radius: 20px; font-size: 15px; font-weight: 600;
+}
+.chips.small button { padding: 6px 12px; font-size: 13px; }
+.chips button.on { background: var(--accent); color: #06281a; }
+main { padding: 14px 12px 90px; }
+.card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 10px;
+}
+.card .price { font-size: 24px; font-weight: 800; color: var(--accent); min-width: 86px; text-align: right; }
+.card.best .price { color: var(--gold); }
+.card .info { flex: 1; min-width: 0; }
+.card .name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .addr { color: var(--dim); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .dist { color: var(--dim); font-size: 12px; margin-top: 3px; }
+.badge {
+  font-size: 10px; font-weight: 700; background: var(--card2); color: var(--dim);
+  padding: 2px 7px; border-radius: 8px; margin-left: 6px; vertical-align: 2px;
+}
+.empty { text-align: center; color: var(--dim); padding: 60px 20px; }
+.hidden { display: none; }
+.empty button, #refresh {
+  border: 0; background: var(--card2); color: var(--txt);
+  padding: 12px 22px; border-radius: 12px; font-size: 15px;
+}
+#refresh {
+  position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom));
+  width: 52px; height: 52px; border-radius: 50%; font-size: 22px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+#refresh.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
