@@ -159,7 +159,7 @@ def _qld_get_json(url, retries=4):
         return _get_json("https://api.allorigins.win/raw?url=" + quote(url, safe=""), retries=2)
     except Exception:
         pass
-    return _get_json(url, retries=2)
+    return _get_json(url, retries=5)
 
 def _month_from_name(name):
     low = name.lower()
@@ -208,9 +208,14 @@ QLD_LOADING = False
 def _qld_load_thread():
     global QLD_LOADING, QLD_LAST_ERROR
     try:
-        qld_stations_sync()
-    except Exception as e:  # noqa: BLE001
-        QLD_LAST_ERROR = "load: %r" % (e,)
+        for attempt in range(4):
+            try:
+                qld_stations_sync()
+                if QLD_CACHE["stations"]:
+                    break
+            except Exception as e:  # noqa: BLE001
+                QLD_LAST_ERROR = "load: %r" % (e,)
+            time.sleep(20)  # data.qld throttles datacenter IPs; keep trying in background
     finally:
         QLD_LOADING = False
 
