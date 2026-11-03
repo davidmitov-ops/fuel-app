@@ -132,6 +132,14 @@ QLD_TTL = 6 * 3600  # monthly data: refresh every 6h is plenty
 QLD_MONTHS_CACHE = []
 QLD_LAST_ERROR = ""
 
+def _qld_probe():
+    try:
+        raw = _get("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-2026",
+                   headers={"Accept": "application/json"}, retries=0, timeout=20)
+        return "len %d head %r" % (len(raw), raw[:80])
+    except Exception as e:  # noqa: BLE001
+        return "probe err %r" % (e,)
+
 def _month_from_name(name):
     low = name.lower()
     for i, m in enumerate(QLD_MONTHS, 1):
@@ -354,6 +362,7 @@ class Handler(BaseHTTPRequestHandler):
                     "qld_cached": len(QLD_CACHE["stations"] or []),
                     "qld_months": [list(k) for k in QLD_MONTHS_CACHE] if QLD_MONTHS_CACHE else [],
                     "qld_error": QLD_LAST_ERROR,
+                    "qld_probe": _qld_probe(),
                 }).encode()
                 self._send(200, body, "application/json")
                 return
