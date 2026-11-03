@@ -138,7 +138,7 @@ QLD_LAST_ERROR = ""
 def _qld_probe():
     try:
         raw = _get("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-2026",
-                   headers={"Accept": "application/json"}, retries=0, timeout=20)
+                   headers={"Accept": "application/json"}, retries=4, timeout=20)
         return "len %d head %r" % (len(raw), raw[:80])
     except Exception as e:  # noqa: BLE001
         return "probe err %r" % (e,)
@@ -155,7 +155,7 @@ def qld_month_resources():
     found = {}
     for year in ("2026", "2025"):
         try:
-            d = _get_json("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-%s" % year)
+            d = _get_json("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-%s" % year, retries=4)
         except Exception as e:  # noqa: BLE001
             QLD_LAST_ERROR = "package %s: %r" % (year, e)
             continue
@@ -174,7 +174,7 @@ def qld_fetch_month(resource_id):
     rows, offset, limit = [], 0, 25000
     while True:
         q = urllib.parse.urlencode({"resource_id": resource_id, "limit": limit, "offset": offset})
-        d = _get_json("https://www.data.qld.gov.au/api/3/action/datastore_search?" + q)
+        d = _get_json("https://www.data.qld.gov.au/api/3/action/datastore_search?" + q, retries=4)
         if not d.get("success"):
             break
         recs = d["result"]["records"]
