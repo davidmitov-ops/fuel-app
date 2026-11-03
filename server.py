@@ -41,14 +41,17 @@ def _get(url, headers=None, retries=2, timeout=60):
     h = {"User-Agent": UA}
     h.update(headers or {})
     last = None
-    for _ in range(retries + 1):
+    for attempt in range(retries + 1):
         try:
             req = urllib.request.Request(url, headers=h)
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return r.read()
+                body = r.read()
+                if r.status == 200 and body:
+                    return body
+                last = RuntimeError("HTTP %s, %d bytes" % (r.status, len(body)))
         except Exception as e:  # noqa: BLE001
             last = e
-            time.sleep(2)
+        time.sleep(2 + 2 * attempt)  # data.qld.gov.au returns 202/empty under load; back off and retry
     raise last
 
 def _get_json(url, headers=None):
