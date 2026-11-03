@@ -155,7 +155,7 @@ let tripMode = localStorage.tripMode || "blend";
 let tripResults = [];
 let wooliesOn = localStorage.wooliesOff !== "0";
 
-const WOOLIES_RE = /woolworths|woolies|caltex/i;  // Woolies fuel is sold under Caltex Woolworths / Ampol Woolworths brands
+const WOOLIES_RE = /woolworths|woolies|caltex|metrogo/i;  // Woolies fuel discount sites
 function isWoolies(r) { return wooliesOn && WOOLIES_RE.test((r.brand || "") + " " + (r.name || "")); }
 function effPrice(r) { return r.price - (isWoolies(r) ? 4 : 0); }
 
