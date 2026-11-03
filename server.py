@@ -143,6 +143,16 @@ def _qld_probe():
     except Exception as e:  # noqa: BLE001
         return "probe err %r" % (e,)
 
+
+def _qld_get_json(url, retries=4):
+    # data.qld.gov.au 202-empty-blocks some datacenter IPs (e.g. Render); fall back to a plain CORS proxy
+    try:
+        return _get_json(url, retries=retries)
+    except Exception:
+        pass
+    from urllib.parse import quote
+    return _get_json("https://api.allorigins.win/raw?url=" + quote(url, safe=""), retries=2)
+
 def _month_from_name(name):
     low = name.lower()
     for i, m in enumerate(QLD_MONTHS, 1):
@@ -155,7 +165,7 @@ def qld_month_resources():
     found = {}
     for year in ("2026", "2025"):
         try:
-            d = _get_json("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-%s" % year, retries=4)
+            d = _qld_get_json("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-%s" % year)
         except Exception as e:  # noqa: BLE001
             QLD_LAST_ERROR = "package %s: %r" % (year, e)
             continue
@@ -174,7 +184,7 @@ def qld_fetch_month(resource_id):
     rows, offset, limit = [], 0, 25000
     while True:
         q = urllib.parse.urlencode({"resource_id": resource_id, "limit": limit, "offset": offset})
-        d = _get_json("https://www.data.qld.gov.au/api/3/action/datastore_search?" + q, retries=4)
+        d = _qld_get_json("https://www.data.qld.gov.au/api/3/action/datastore_search?" + q)
         if not d.get("success"):
             break
         recs = d["result"]["records"]
