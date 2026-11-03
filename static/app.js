@@ -146,7 +146,27 @@ function pickCard(r, label, cls) {
   return div;
 }
 
-function renderTrip(res, picks) {
+const TOP_N = 6;
+let tripMode = localStorage.tripMode || "blend";
+let tripResults = [];
+
+function rankResults(mode) {
+  const rs = tripResults;
+  if (!rs.length) return [];
+  if (mode === "price") return [...rs].sort((a, b) => a.price - b.price || a.detour_km - b.detour_km).slice(0, TOP_N);
+  if (mode === "close") return [...rs].sort((a, b) => a.detour_km - b.detour_km || a.price - b.price).slice(0, TOP_N);
+  // blend: 0-1 normalise price and detour, average the ranks
+    const ps = rs.map(r => r.price), ds = rs.map(r => r.detour_km);
+    const plo = Math.min(...ps), phi = Math.max(...ps), dlo = Math.min(...ds), dhi = Math.max(...ds);
+    const n = (v, lo, hi) => (hi - lo < 1e-9 ? 0 : (v - lo) / (hi - lo));
+    return [...rs].sort((a, b) =>
+      (n(a.price, plo, phi) + n(a.detour_km, dlo, dhi)) - (n(b.price, plo, phi) + n(b.detour_km, dlo, dhi))
+    ).slice(0, TOP_N);
+}
+
+const MODE_LABEL = { close: "closest + cheap", price: "best price", blend: "best blend" };
+
+function renderTrip() {
   const tl = $("#tripList");
   tl.innerHTML = "";
   markers.forEach((m) => m.remove()); markers = [];
@@ -156,35 +176,20 @@ function renderTrip(res, picks) {
     routeLine = L.polyline(window._tripPath, { color: "#4da3ff", weight: 5, opacity: 0.7 }).addTo(map_);
     map_.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
   }
-  const prices = res.map(r => r.price);
-  const pickIds = new Set();
-  if (picks) {
-    const seen = new Set();
-    const best = (picks.best || []).filter(r => !seen.has(r.id) && seen.add(r.id));
-    const smart = (picks.smart || []).filter(r => !best.includes(r) && !seen.has(r.id) && seen.add(r.id));
-    for (const r of best) { tl.appendChild(pickCard(r, "best price")); pickIds.add(r.id); }
-    for (const r of smart) { tl.appendChild(pickCard(r, "smart stop", "smart")); pickIds.add(r.id); }
-  }
-  for (const r of res) {
+  const all = tripResults;
+  const picks = rankResults(tripMode);
+  const pickIds = new Set(picks.map(r => r.id));
+  for (const r of all) {
     const m = L.circleMarker([r.lat, r.lng], {
-      radius: pickIds.has(r.id) ? 11 : 8,
-      fillColor: pickIds.has(r.id) ? "#2ecc71" : priceColor(r.price, prices),
-      color: pickIds.has(r.id) ? "#ffe066" : "#fff", weight: 2, fillOpacity: 1,
+      radius: pickIds.has(r.id) ? 11 : 5,
+      fillColor: pickIds.has(r.id) ? "#2ecc71" : "#3a4150",
+      color: pickIds.has(r.id) ? "#ffe066" : "#666", weight: 1.5, fillOpacity: 0.9,
     }).addTo(map_);
     m.bindTooltip(`${r.brand || r.name} ${r.price}¢ · +${r.detour_km} km`);
     m.on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
     markers.push(m);
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML =
-      '<div class="info">' +
-      '<div class="name">' + esc(r.brand || r.name || "?") + '</div>' +
-      '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route</div>' +
-      "</div>" +
-      '<div class="price">' + r.price.toFixed(1) + "<span style='font-size:12px;font-weight:400'> c/L</span></div>";
-    div.addEventListener("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
-    tl.appendChild(div);
   }
+  for (const r of picks) tl.appendChild(pickCard(r, MODE_LABEL[tripMode]));
 }
 
 async function planTrip() {
@@ -200,15 +205,25 @@ async function planTrip() {
     const d = await r.json();
     if (d.error) { $("#tripStatus").textContent = d.error; return; }
     window._tripPath = d.path || [];
-    $("#tripStatus").textContent = d.results.length + " stations along " + d.route_km + " km (within " + detour + " km)";
-    renderTrip(d.results || [], d.picks);
-    if (!d.results.length) $("#tripStatus").textContent += " — try a wider detour";
+    tripResults = d.results || [];
+    $("#tripModes").style.display = tripResults.length ? "flex" : "none";
+    $("#tripStatus").textContent = tripResults.length + " stations along " + d.route_km + " km (within " + detour + " km) — showing top " + TOP_N + ", " + MODE_LABEL[tripMode];
+    renderTrip();
+    if (!tripResults.length) $("#tripStatus").textContent += " — try a wider detour";
   } catch (e) {
     $("#tripStatus").textContent = "route failed, try again";
   }
 }
 $("#goTrip").onclick = planTrip;
 $("#toInput").addEventListener("keydown", (e) => e.key === "Enter" && planTrip());
+document.querySelectorAll("#tripModes button").forEach((b) => {
+  if (b.dataset.mode === tripMode) b.classList.add("on");
+  b.onclick = () => {
+    tripMode = b.dataset.mode; localStorage.tripMode = tripMode;
+    document.querySelectorAll("#tripModes button").forEach((x) => x.classList.toggle("on", x === b));
+    if (tripResults.length) renderTrip();
+  };
+});
 document.querySelectorAll("#detourChips button[data-km]").forEach((b) => {
   if (b.dataset.km === String(detour)) b.classList.add("on");
   b.onclick = () => {

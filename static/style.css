@@ -72,6 +72,9 @@ footer { text-align:center; color:var(--dim); font-size:11px; padding:8px 0 90px
 #tripStatus { padding:0 14px; }
 #tripList { padding-top:4px; }
 .card.pick { border: 1px solid #2ecc71; }
+.modes { display:flex; gap:6px; }
+.modes button { flex:1; border:0; background:var(--card); color:var(--dim); padding:9px 4px; border-radius:10px; font-weight:700; font-size:13px; }
+.modes button.on { background:var(--accent); color:#06281a; }
 .card.pick.smart { border-color: #ffe066; }
 .go { background:var(--accent)!important; color:#06281a!important; font-weight:800; }
 .leaflet-container { background:#0f1115; }
