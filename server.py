@@ -182,25 +182,44 @@ def qld_month_resources():
 
 def qld_fetch_month(resource_id):
     rows, offset, limit = [], 0, 25000
+    fields = "SiteId,Site_Name,Site_Brand,Sites_Address_Line_1,Site_Suburb,Site_Post_Code,Site_Latitude,Site_Longitude,Price,TransactionDateutc,Fuel_Type"
     while True:
-        q = urllib.parse.urlencode({"resource_id": resource_id, "limit": limit, "offset": offset})
+        q = urllib.parse.urlencode({"resource_id": resource_id, "limit": limit, "offset": offset, "fields": fields})
         d = _qld_get_json("https://www.data.qld.gov.au/api/3/action/datastore_search?" + q)
         if not d.get("success"):
             break
         recs = d["result"]["records"]
         rows.extend(r for r in recs if r.get("Site_Latitude"))
-        if len(rec) if False else len(recs) < limit:
+        if len(recs) < limit:
             break
         offset += limit
     return rows
 
+QLD_LOADING = False
+
+def _qld_load_thread():
+    global QLD_LOADING, QLD_LAST_ERROR
+    try:
+        qld_stations_sync()
+    except Exception as e:  # noqa: BLE001
+        QLD_LAST_ERROR = "load: %r" % (e,)
+    finally:
+        QLD_LOADING = False
+
 def qld_stations():
+    global QLD_LOADING
     now = time.time()
     if QLD_CACHE["stations"] and now - QLD_CACHE["ts"] < QLD_TTL:
         return QLD_CACHE["stations"]
+    if not QLD_LOADING:
+        QLD_LOADING = True
+        threading.Thread(target=_qld_load_thread, daemon=True).start()
+    return QLD_CACHE["stations"] or []  # don't block the request; loads in background
 
+def qld_stations_sync():
+    now = time.time()
     prices, meta = {}, {}
-    for (year, month), rid in qld_month_resources()[:3]:
+    for (year, month), rid in qld_month_resources()[:1]:
         for r in qld_fetch_month(rid):
             sid = r["SiteId"]
             meta.setdefault(sid, {
