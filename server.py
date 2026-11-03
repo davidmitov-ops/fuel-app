@@ -441,7 +441,12 @@ def route_stations(a, b, fuel, detour_km):
     for r in out:
         ded[r["id"]] = r
     res = sorted(ded.values(), key=lambda r: (r["along_km"], r["price"]))
-    return res[:60], round(total_km), [[p[0], p[1]] for p in path]
+    res = res[:60]
+    best = sorted(res, key=lambda r: (r["price"], r["detour_km"]))[:3]
+    smart = sorted(res, key=lambda r: r["price"] + 1.5 * r["detour_km"])[:3]  # price per detour penalty
+    for r in smart:
+        r["score"] = round(r["price"] + 1.5 * r["detour_km"], 1)
+    return res, round(total_km), [[p[0], p[1]] for p in path], {"best": best, "smart": smart}
 
 # ---------------- HTTP ----------------
 
@@ -506,8 +511,8 @@ class Handler(BaseHTTPRequestHandler):
                     body = json.dumps({"error": "could not resolve places"}).encode()
                     self._send(200, body, "application/json")
                     return
-                stations, total_km, path = route_stations(A[:2], B[:2], fuel, detour)
-                body = json.dumps({"results": stations, "route_km": total_km, "path": path}).encode()
+                stations, total_km, path, picks = route_stations(A[:2], B[:2], fuel, detour)
+                body = json.dumps({"results": stations, "route_km": total_km, "path": path, "picks": picks}).encode()
                 self._send(200, body, "application/json")
                 return
 

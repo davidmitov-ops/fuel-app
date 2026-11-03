@@ -71,5 +71,7 @@ footer { text-align:center; color:var(--dim); font-size:11px; padding:8px 0 90px
 #map { height:46vh; min-height:280px; margin:10px 12px; border-radius:14px; z-index:0; }
 #tripStatus { padding:0 14px; }
 #tripList { padding-top:4px; }
+.card.pick { border: 1px solid #2ecc71; }
+.card.pick.smart { border-color: #ffe066; }
 .go { background:var(--accent)!important; color:#06281a!important; font-weight:800; }
 .leaflet-container { background:#0f1115; }

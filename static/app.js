@@ -133,7 +133,20 @@ function priceColor(p, prices) {
   return "#3498db";
 }
 
-function renderTrip(res) {
+function pickCard(r, label, cls) {
+  const div = document.createElement("div");
+  div.className = "card pick " + (cls || "");
+  div.innerHTML =
+    '<div class="info">' +
+    '<div class="name"><span class="badge">' + label + '</span> ' + esc(r.brand || r.name || "?") + '</div>' +
+    '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route</div>' +
+    "</div>" +
+    '<div class="price">' + r.price.toFixed(1) + "<span style='font-size:12px;font-weight:400'> c/L</span></div>";
+  div.addEventListener("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
+  return div;
+}
+
+function renderTrip(res, picks) {
   const tl = $("#tripList");
   tl.innerHTML = "";
   markers.forEach((m) => m.remove()); markers = [];
@@ -144,9 +157,19 @@ function renderTrip(res) {
     map_.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
   }
   const prices = res.map(r => r.price);
+  const pickIds = new Set();
+  if (picks) {
+    const seen = new Set();
+    const best = (picks.best || []).filter(r => !seen.has(r.id) && seen.add(r.id));
+    const smart = (picks.smart || []).filter(r => !best.includes(r) && !seen.has(r.id) && seen.add(r.id));
+    for (const r of best) { tl.appendChild(pickCard(r, "best price")); pickIds.add(r.id); }
+    for (const r of smart) { tl.appendChild(pickCard(r, "smart stop", "smart")); pickIds.add(r.id); }
+  }
   for (const r of res) {
     const m = L.circleMarker([r.lat, r.lng], {
-      radius: 8, fillColor: priceColor(r.price, prices), color: "#fff", weight: 2, fillOpacity: 1,
+      radius: pickIds.has(r.id) ? 11 : 8,
+      fillColor: pickIds.has(r.id) ? "#2ecc71" : priceColor(r.price, prices),
+      color: pickIds.has(r.id) ? "#ffe066" : "#fff", weight: 2, fillOpacity: 1,
     }).addTo(map_);
     m.bindTooltip(`${r.brand || r.name} ${r.price}¢ · +${r.detour_km} km`);
     m.on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
@@ -178,7 +201,7 @@ async function planTrip() {
     if (d.error) { $("#tripStatus").textContent = d.error; return; }
     window._tripPath = d.path || [];
     $("#tripStatus").textContent = d.results.length + " stations along " + d.route_km + " km (within " + detour + " km)";
-    renderTrip(d.results || []);
+    renderTrip(d.results || [], d.picks);
     if (!d.results.length) $("#tripStatus").textContent += " — try a wider detour";
   } catch (e) {
     $("#tripStatus").textContent = "route failed, try again";
