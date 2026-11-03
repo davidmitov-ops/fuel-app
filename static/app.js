@@ -155,7 +155,7 @@ let tripMode = localStorage.tripMode || "blend";
 let tripResults = [];
 let wooliesOn = localStorage.wooliesOff !== "0";
 
-const WOOLIES_RE = /woolworths|woolies|caltex|metrogo/i;  // Woolies fuel discount sites
+const WOOLIES_RE = /woolworths|woolies|caltex|metrogo|ampol|eg ampol|(^|\s)eg(\s|$)|u-go|ugo/i;  // discount sites: Woolies partners incl Ampol/EG/U-Go
 function isWoolies(r) { return wooliesOn && WOOLIES_RE.test((r.brand || "") + " " + (r.name || "")); }
 function effPrice(r) { return r.price - (isWoolies(r) ? 4 : 0); }
 
