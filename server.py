@@ -128,6 +128,8 @@ QLD_FUEL_MAP = {
 
 QLD_CACHE = {"stations": None, "ts": 0}
 QLD_TTL = 6 * 3600  # monthly data: refresh every 6h is plenty
+QLD_MONTHS_CACHE = []
+QLD_LAST_ERROR = ""
 
 def _month_from_name(name):
     low = name.lower()
@@ -137,11 +139,13 @@ def _month_from_name(name):
     return None
 
 def qld_month_resources():
+    global QLD_MONTHS_CACHE, QLD_LAST_ERROR
     found = {}
     for year in ("2026", "2025"):
         try:
             d = _get_json("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-%s" % year)
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            QLD_LAST_ERROR = "package %s: %r" % (year, e)
             continue
         if not d.get("success"):
             continue
@@ -151,6 +155,7 @@ def qld_month_resources():
             m = _month_from_name(res["name"])
             if m:
                 found[(int(year), m)] = res["id"]
+    QLD_MONTHS_CACHE = sorted(found.keys(), reverse=True)
     return sorted(found.items(), key=lambda kv: kv[0], reverse=True)
 
 def qld_fetch_month(resource_id):
@@ -342,7 +347,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, body, "application/json")
                 return
             if parsed.path == "/api/status":
-                body = json.dumps({"nsw_key": nsw_available()}).encode()
+                body = json.dumps({
+                    "nsw_key": nsw_available(),
+                    "nsw_cached": bool(NSW_CACHE["stations"]),
+                    "qld_cached": len(QLD_CACHE["stations"] or []),
+                    "qld_months": [list(k) for k in QLD_MONTHS_CACHE] if QLD_MONTHS_CACHE else [],
+                    "qld_error": QLD_LAST_ERROR,
+                }).encode()
                 self._send(200, body, "application/json")
                 return
 
