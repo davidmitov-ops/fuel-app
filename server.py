@@ -136,12 +136,20 @@ QLD_MONTHS_CACHE = []
 QLD_LAST_ERROR = ""
 
 def _qld_probe():
+    out = []
+    for host in ("www.data.qld.gov.au", "data.qld.gov.au"):
+        u = "https://%s/api/3/action/package_show?id=fuel-price-reporting-2026" % host
+        try:
+            raw = _get(u, headers={"Accept": "application/json"}, retries=0, timeout=20)
+            out.append("%s OK len %d" % (host, len(raw)))
+        except Exception as e:  # noqa: BLE001
+            out.append("%s err %r" % (host, e))
+    import socket
     try:
-        raw = _get("https://www.data.qld.gov.au/api/3/action/package_show?id=fuel-price-reporting-2026",
-                   headers={"Accept": "application/json"}, retries=4, timeout=20)
-        return "len %d head %r" % (len(raw), raw[:80])
+        out.append("v4 %s" % socket.gethostbyname("www.data.qld.gov.au"))
     except Exception as e:  # noqa: BLE001
-        return "probe err %r" % (e,)
+        out.append("dns err %r" % e)
+    return " | ".join(out)
 
 
 def _qld_get_json(url, retries=4):
