@@ -31,12 +31,11 @@ def load_config():
 
 CONFIG = load_config()
 
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36"
 
 NSW_CACHE = {"stations": None, "ts": 0}
 NSW_TTL = 300  # 5 min; real-time feel, ~9k calls/month worst case, typical far less
 
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36"
 
 def _get(url, headers=None, retries=2, timeout=60):
     h = {"User-Agent": UA}
