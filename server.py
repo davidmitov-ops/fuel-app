@@ -54,8 +54,8 @@ def _get(url, headers=None, retries=2, timeout=60):
         time.sleep(2 + 2 * attempt)  # data.qld.gov.au returns 202/empty under load; back off and retry
     raise last
 
-def _get_json(url, headers=None):
-    return json.loads(_get(url, headers))
+def _get_json(url, headers=None, retries=2, timeout=60):
+    return json.loads(_get(url, headers, retries=retries, timeout=timeout))
 
 # ---------------- NSW / TAS (FuelCheck via api.onegov.nsw.gov.au) ----------------
 
