@@ -145,13 +145,13 @@ def _qld_probe():
 
 
 def _qld_get_json(url, retries=4):
-    # data.qld.gov.au 202-empty-blocks some datacenter IPs (e.g. Render); fall back to a plain CORS proxy
+    # data.qld.gov.au is flaky toward datacenter IPs (202/520/522); try the CORS proxy first
     try:
-        return _get_json(url, retries=retries)
+        from urllib.parse import quote
+        return _get_json("https://api.allorigins.win/raw?url=" + quote(url, safe=""), retries=2)
     except Exception:
         pass
-    from urllib.parse import quote
-    return _get_json("https://api.allorigins.win/raw?url=" + quote(url, safe=""), retries=2)
+    return _get_json(url, retries=2)
 
 def _month_from_name(name):
     low = name.lower()
@@ -219,8 +219,11 @@ def qld_stations():
 def qld_stations_sync():
     now = time.time()
     prices, meta = {}, {}
-    for (year, month), rid in qld_month_resources()[:1]:
-        for r in qld_fetch_month(rid):
+    for (year, month), rid in qld_month_resources()[:4]:  # newest first; stop at first month that loads
+        month_rows = qld_fetch_month(rid)
+        if not month_rows:
+            continue
+        for r in month_rows:
             sid = r["SiteId"]
             meta.setdefault(sid, {
                 "name": r.get("Site_Name"), "brand": r.get("Site_Brand"),
@@ -234,6 +237,7 @@ def qld_stations_sync():
             prev = prices.get(key)
             if not prev or str(ts) > str(prev[0]):
                 prices[key] = (str(ts), round(r["Price"] / 10.0, 1))
+        break  # newest month that loaded is enough; no history needed
 
     out = {}
     for (sid, fuel), (ts, price) in prices.items():
