@@ -87,7 +87,7 @@ document.querySelectorAll("#fuelChips button").forEach((b) => {
   if (b.dataset.fuel === fuel) { b.classList.add("on"); document.querySelectorAll("#fuelChips button").forEach((x) => x !== b && x.classList.remove("on")); }
   b.onclick = () => {
     fuel = b.dataset.fuel; localStorage.fuel = fuel;
-    document.querySelectorAll("#fuelChips button").forEach((x) => x.classList.toggle("on", x === b));
+    syncFuelChips();
     load();
   };
 });
@@ -134,14 +134,18 @@ function priceColor(p, prices) {
 }
 
 function pickCard(r, label, cls) {
+  const eff = effPrice(r);
+  const wool = isWoolies(r);
   const div = document.createElement("div");
   div.className = "card pick " + (cls || "");
   div.innerHTML =
     '<div class="info">' +
-    '<div class="name"><span class="badge">' + label + '</span> ' + esc(r.brand || r.name || "?") + '</div>' +
-    '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route</div>' +
+    '<div class="name"><span class="badge">' + label + '</span> ' + esc(r.brand || r.name || "?") +
+    (wool ? '<span class="badge wool">Woolies &minus;4&cent;</span>' : "") + '</div>' +
+    '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route' +
+    (wool ? ' <span class="dim">(pump ' + r.price.toFixed(1) + ')</span>' : "") + '</div>' +
     "</div>" +
-    '<div class="price">' + r.price.toFixed(1) + "<span style='font-size:12px;font-weight:400'> c/L</span></div>";
+    '<div class="price">' + eff.toFixed(1) + "<span style='font-size:12px;font-weight:400'> c/L</span></div>";
   div.addEventListener("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"));
   return div;
 }
@@ -149,18 +153,24 @@ function pickCard(r, label, cls) {
 const TOP_N = 6;
 let tripMode = localStorage.tripMode || "blend";
 let tripResults = [];
+let wooliesOn = localStorage.wooliesOff !== "0";
+
+const WOOLIES_RE = /woolworths|woolies|caltex/i;  // Woolies fuel is sold under Caltex Woolworths / Ampol Woolworths brands
+function isWoolies(r) { return wooliesOn && WOOLIES_RE.test((r.brand || "") + " " + (r.name || "")); }
+function effPrice(r) { return r.price - (isWoolies(r) ? 4 : 0); }
 
 function rankResults(mode) {
   const rs = tripResults;
   if (!rs.length) return [];
-  if (mode === "price") return [...rs].sort((a, b) => a.price - b.price || a.detour_km - b.detour_km).slice(0, TOP_N);
-  if (mode === "close") return [...rs].sort((a, b) => a.detour_km - b.detour_km || a.price - b.price).slice(0, TOP_N);
-  // blend: 0-1 normalise price and detour, average the ranks
-    const ps = rs.map(r => r.price), ds = rs.map(r => r.detour_km);
+  const keyP = (r) => effPrice(r);
+  if (mode === "price") return [...rs].sort((a, b) => keyP(a) - keyP(b) || a.detour_km - b.detour_km).slice(0, TOP_N);
+  if (mode === "close") return [...rs].sort((a, b) => a.detour_km - b.detour_km || keyP(a) - keyP(b)).slice(0, TOP_N);
+  // blend: 0-1 normalise eff price and detour, average the ranks
+    const ps = rs.map(keyP), ds = rs.map(r => r.detour_km);
     const plo = Math.min(...ps), phi = Math.max(...ps), dlo = Math.min(...ds), dhi = Math.max(...ds);
     const n = (v, lo, hi) => (hi - lo < 1e-9 ? 0 : (v - lo) / (hi - lo));
     return [...rs].sort((a, b) =>
-      (n(a.price, plo, phi) + n(a.detour_km, dlo, dhi)) - (n(b.price, plo, phi) + n(b.detour_km, dlo, dhi))
+      (n(keyP(a), plo, phi) + n(a.detour_km, dlo, dhi)) - (n(keyP(b), plo, phi) + n(b.detour_km, dlo, dhi))
     ).slice(0, TOP_N);
 }
 
@@ -224,6 +234,31 @@ document.querySelectorAll("#tripModes button").forEach((b) => {
     if (tripResults.length) renderTrip();
   };
 });
+
+// trip fuel picker (mirror of the nearby chips; same `fuel` state)
+const FUELS = [["U91", "91"], ["U95", "95"], ["U98", "98"], ["DL", "Diesel"], ["LPG", "LPG"]];
+const tf = document.getElementById("tripFuel");
+FUELS.forEach(([f, label]) => {
+  const b = document.createElement("button");
+  b.textContent = label; b.dataset.fuel = f;
+  if (f === fuel) b.classList.add("on");
+  b.onclick = () => {
+    fuel = f; localStorage.fuel = fuel;
+    syncFuelChips();
+    if (tripResults.length) planTrip();
+  };
+  tf.appendChild(b);
+});
+function syncFuelChips() {
+  document.querySelectorAll("#fuelChips button, #tripFuel button").forEach((x) => x.classList.toggle("on", x.dataset.fuel === fuel));
+}
+const wT = document.getElementById("wooliesToggle");
+wT.checked = wooliesOn;
+wT.onchange = () => {
+  wooliesOn = wT.checked;
+  localStorage.wooliesOff = wT.checked ? "1" : "0";
+  if (tripResults.length) renderTrip();
+};
 document.querySelectorAll("#detourChips button[data-km]").forEach((b) => {
   if (b.dataset.km === String(detour)) b.classList.add("on");
   b.onclick = () => {
