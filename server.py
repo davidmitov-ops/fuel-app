@@ -372,7 +372,7 @@ def resolve_place(q):
         return float(a), float(b), q[:40]
     name = urllib.parse.quote(q)
     try:
-        d = _get_json("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + name,
+        d = _get_json("https://nominatim.openstreetmap.org/search?format=json&countrycodes=au&limit=1&q=" + name,
                       headers={"User-Agent": UA}, retries=1, timeout=15)
         if d:
             return float(d[0]["lat"]), float(d[0]["lon"]), (d[0].get("display_name") or "")[:40]
