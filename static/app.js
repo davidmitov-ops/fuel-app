@@ -179,11 +179,13 @@ function priceColor(p, prices) {
 function pickCard(r, label, cls) {
   const eff = effPrice(r);
   const wool = isWoolies(r);
+  const tier = priceTier(r.price, tripResults);
+  const dot = tier === "cheap" ? "cheap" : tier === "dear" ? "dear" : "mid";
   const div = document.createElement("div");
   div.className = "card pick " + (cls || "");
   div.innerHTML =
     '<div class="info">' +
-    '<div class="name"><span class="badge">' + label + '</span> ' + esc(r.brand || r.name || "?") +
+    '<div class="name"><span class="tierdot ' + dot + '">&#9679;</span><span class="badge">' + label + '</span> ' + esc(r.brand || r.name || "?") +
     (wool ? '<span class="badge wool">Woolies &minus;4&cent;</span>' : "") + '</div>' +
     '<div class="addr">' + esc(r.suburb || r.address || "") + ' &middot; ' + r.along_km + ' km into trip &middot; ' + r.detour_km + ' km off-route' +
     (wool ? ' <span class="dim">(pump ' + r.price.toFixed(1) + ')</span>' : "") + '</div>' +
