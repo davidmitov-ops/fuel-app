@@ -33,7 +33,7 @@ function renderNearbyMap(results) {
   for (const r of results) {
     const tier = priceTier(r.price, results);
     // colourblind-safe, no blue (reserved for you-are-here): orange = cheap, grey = mid, purple = pricy; size mirrors tier
-    const st = tier === "cheap" ? { c: "#e67e22", r: 8 } : tier === "dear" ? { c: "#8e6bbf", r: 5 } : { c: "#9aa5b1", r: 6.5 };
+    const st = tier === "cheap" ? { c: "#f2c200", r: 8 } : tier === "dear" ? { c: "#e63333", r: 5 } : { c: "#9aa5b1", r: 6.5 };
     const m = L.circleMarker([r.lat, r.lng], { radius: st.r, color: "#fff", weight: 1.5, fillColor: st.c, fillOpacity: 0.95 })
       .bindTooltip((r.brand || r.name || "?") + " " + r.price.toFixed(1) + "c · " + r.distance_km + "km")
       .on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"))
@@ -172,7 +172,7 @@ function initMap() {
 function priceColor(p, prices) {
   const lo = Math.min(...prices), hi = Math.max(...prices);
   if (p === lo) return "#2ecc71";
-  if (p === hi) return "#e67e22";
+  if (p === hi) return "#f2c200";
   return "#3498db";
 }
 
