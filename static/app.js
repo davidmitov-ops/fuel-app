@@ -32,8 +32,8 @@ function renderNearbyMap(results) {
   const pts = [[coords.lat, coords.lng]];
   for (const r of results) {
     const tier = priceTier(r.price, results);
-    // colourblind-safe: blue = cheap, grey = mid, orange = pricy; size mirrors tier too
-    const st = tier === "cheap" ? { c: "#2f86eb", r: 8 } : tier === "dear" ? { c: "#f39c12", r: 5 } : { c: "#9aa5b1", r: 6.5 };
+    // colourblind-safe, no blue (reserved for you-are-here): orange = cheap, grey = mid, purple = pricy; size mirrors tier
+    const st = tier === "cheap" ? { c: "#e67e22", r: 8 } : tier === "dear" ? { c: "#8e6bbf", r: 5 } : { c: "#9aa5b1", r: 6.5 };
     const m = L.circleMarker([r.lat, r.lng], { radius: st.r, color: "#fff", weight: 1.5, fillColor: st.c, fillOpacity: 0.95 })
       .bindTooltip((r.brand || r.name || "?") + " " + r.price.toFixed(1) + "c · " + r.distance_km + "km")
       .on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"))
@@ -52,11 +52,13 @@ function render(results) {
   else $("#nearbyMap").classList.add("hidden");
   const best = results.length ? results[0].price : null;
   for (const r of results) {
+    const tier = priceTier(r.price, results);
+    const dot = tier === "cheap" ? "cheap" : tier === "dear" ? "dear" : "mid";
     const div = document.createElement("div");
     div.className = "card" + (r.price === best ? " best" : "");
     div.innerHTML =
       '<div class="info">' +
-      '<div class="name">' + esc(r.brand || r.name || "?") +
+      '<div class="name"><span class="tierdot ' + dot + '">&#9679;</span> ' + esc(r.brand || r.name || "?") +
       (r.name && r.brand && r.name !== r.brand ? "" : "") + "</div>" +
       '<div class="addr">' + esc(r.address || "") + (r.suburb ? ", " + esc(r.suburb) : "") + "</div>" +
       '<div class="dist">' + r.distance_km + " km" + (r.state ? " &middot; " + r.state : "") +
