@@ -6,9 +6,49 @@ let coords = null;
 const $ = (s) => document.querySelector(s);
 const list = $("#list");
 
+function priceTier(p, results) {
+  if (!results.length) return "mid";
+  const ps = results.map(r => r.price);
+  const lo = Math.min(...ps), hi = Math.max(...ps);
+  if (hi - lo < 0.1) return "mid";
+  const t = (p - lo) / (hi - lo);
+  return t <= 0.33 ? "cheap" : t >= 0.66 ? "dear" : "mid";
+}
+
+let nmap = null, nmarkers = [], userMarker = null;
+function renderNearbyMap(results) {
+  if (!nmap) {
+    nmap = L.map("nearbyMap", { zoomControl: true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(nmap);
+    const lg = L.control({ position: "bottomleft" });
+    lg.onAdd = () => { const d = L.DomUtil.create("div", "maplegend"); d.innerHTML = "<span class='cheap'>&#9679;</span>cheap <span class='mid'>&#9679;</span>avg <span class='dear'>&#9679;</span>dear"; return d; };
+    lg.addTo(nmap);
+  }
+  for (const m of nmarkers) nmap.removeLayer(m);
+  nmarkers = [];
+  if (userMarker) { nmap.removeLayer(userMarker); userMarker = null; }
+  userMarker = L.circleMarker([coords.lat, coords.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#4da3ff", fillOpacity: 1 })
+    .bindTooltip("You").addTo(nmap);
+  const pts = [[coords.lat, coords.lng]];
+  for (const r of results) {
+    const tier = priceTier(r.price, results);
+    const col = tier === "cheap" ? "#2ecc71" : tier === "dear" ? "#e67e22" : "#f1c40f";
+    const m = L.circleMarker([r.lat, r.lng], { radius: 6, color: "#fff", weight: 1.5, fillColor: col, fillOpacity: 0.95 })
+      .bindTooltip((r.brand || r.name || "?") + " " + r.price.toFixed(1) + "c · " + r.distance_km + "km")
+      .on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"))
+      .addTo(nmap);
+    pts.push([r.lat, r.lng]);
+    nmarkers.push(m);
+  }
+  nmap.fitBounds(L.latLngBounds(pts).pad(0.15));
+  setTimeout(() => nmap.invalidateSize(), 50);
+}
+
 function render(results) {
   list.innerHTML = "";
   $("#empty").classList.toggle("hidden", results.length > 0);
+  if (coords && results.length) { $("#nearbyMap").classList.remove("hidden"); try { renderNearbyMap(results); } catch (e) {} }
+  else $("#nearbyMap").classList.add("hidden");
   const best = results.length ? results[0].price : null;
   for (const r of results) {
     const div = document.createElement("div");
