@@ -21,7 +21,7 @@ function renderNearbyMap(results) {
     nmap = L.map("nearbyMap", { zoomControl: true });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(nmap);
     const lg = L.control({ position: "bottomleft" });
-    lg.onAdd = () => { const d = L.DomUtil.create("div", "maplegend"); d.innerHTML = "<span class='cheap'>&#9679;</span>cheap <span class='mid'>&#9679;</span>avg <span class='dear'>&#9679;</span>dear"; return d; };
+    lg.onAdd = () => { const d = L.DomUtil.create("div", "maplegend"); d.innerHTML = "<span class='cheap'>&#9679;</span>cheap <span class='mid'>&#9679;</span>avg <span class='dear'>&#9679;</span>pricy <span class='lgdim'>(bigger dot = cheaper)</span>"; return d; };
     lg.addTo(nmap);
   }
   for (const m of nmarkers) nmap.removeLayer(m);
@@ -32,8 +32,9 @@ function renderNearbyMap(results) {
   const pts = [[coords.lat, coords.lng]];
   for (const r of results) {
     const tier = priceTier(r.price, results);
-    const col = tier === "cheap" ? "#2ecc71" : tier === "dear" ? "#e67e22" : "#f1c40f";
-    const m = L.circleMarker([r.lat, r.lng], { radius: 6, color: "#fff", weight: 1.5, fillColor: col, fillOpacity: 0.95 })
+    // colourblind-safe: blue = cheap, grey = mid, orange = pricy; size mirrors tier too
+    const st = tier === "cheap" ? { c: "#2f86eb", r: 8 } : tier === "dear" ? { c: "#f39c12", r: 5 } : { c: "#9aa5b1", r: 6.5 };
+    const m = L.circleMarker([r.lat, r.lng], { radius: st.r, color: "#fff", weight: 1.5, fillColor: st.c, fillOpacity: 0.95 })
       .bindTooltip((r.brand || r.name || "?") + " " + r.price.toFixed(1) + "c · " + r.distance_km + "km")
       .on("click", () => window.open("https://www.google.com/maps/dir/?api=1&destination=" + r.lat + "," + r.lng, "_blank"))
       .addTo(nmap);

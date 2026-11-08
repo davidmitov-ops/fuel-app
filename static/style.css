@@ -71,7 +71,8 @@ footer { text-align:center; color:var(--dim); font-size:11px; padding:8px 0 90px
 #map { height:46vh; min-height:280px; margin:10px 12px; border-radius:14px; z-index:0; }
 #nearbyMap { height:38vh; min-height:240px; margin:10px 12px; border-radius:14px; z-index:0; }
 .maplegend { background:rgba(255,255,255,.92); padding:4px 8px; border-radius:8px; font-size:12px; color:#111; box-shadow:0 1px 4px rgba(0,0,0,.3); }
-.maplegend .cheap { color:#2ecc71; } .maplegend .mid { color:#d4a017; } .maplegend .dear { color:#e67e22; }
+.maplegend .cheap { color:#2f86eb; } .maplegend .mid { color:#9aa5b1; } .maplegend .dear { color:#f39c12; }
+.maplegend .lgdim { color:#666; font-size:10px; }
 #tripStatus { padding:0 14px; }
 #tripList { padding-top:4px; }
 .card.pick { border: 1px solid #2ecc71; }
