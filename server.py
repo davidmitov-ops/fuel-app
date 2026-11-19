@@ -3,7 +3,7 @@
 
 Providers
   NSW  FuelCheck API v1   (free key, config.json -> nsw_api_key)
-  QLD  data.qld.gov.au    (keyless, monthly files merged, latest price wins)
+  QLD  FPDAPI realtime (token in config); data.qld.gov.au monthly as fallback
   WA   FuelWatch RSS      (keyless, today's prices)
   TAS  via NSW FuelCheck v2 when key present (handled by nsw provider flag)
 
@@ -119,7 +119,7 @@ def nsw_stations():
     NSW_CACHE["ts"] = now
     return res
 
-# ---------------- QLD (keyless) ----------------
+# ---------------- QLD (real-time FPDAPI, token in config; monthly scrape fallback) ----------------
 
 QLD_MONTHS = ["january", "february", "march", "april", "may", "june", "july",
               "august", "september", "october", "november", "december"]
@@ -131,10 +131,109 @@ QLD_FUEL_MAP = {
     "Diesel": "DL", "Premium Diesel": "PDSL", "LPG": "LPG", "e85": "E85",
 }
 
+# FPDAPI FuelId -> canonical
+QLD_API_FUEL_MAP = {2: "U91", 12: "U91", 999: "U91", 21: "U91",
+                    5: "U95", 8: "U98", 3: "DL", 6: "DL", 1000: "DL",
+                    14: "PDSL", 4: "LPG", 19: "E85"}
+
 QLD_CACHE = {"stations": None, "ts": 0}
-QLD_TTL = 6 * 3600  # monthly data: refresh every 6h is plenty
+QLD_TTL = 1800  # real-time feed; half-hourly refresh, 3 upstream calls each
 QLD_MONTHS_CACHE = []
 QLD_LAST_ERROR = ""
+QLD_SOURCE = "api"  # "api" (FPDAPI realtime) or "monthly" (data.qld.gov.au fallback)
+
+QLD_API = "https://fppdirectapi-prod.fuelpricesqld.com.au"
+
+def qld_api_available():
+    return bool(CONFIG.get("qld_token"))
+
+def _qld_api_get(path):
+    tok = CONFIG["qld_token"]
+    return _get_json(QLD_API + path, headers={
+        "Authorization": "FPDAPI SubscriberToken=%s" % tok,
+        "Accept": "application/json",
+    }, retries=2, timeout=120)
+
+QLD_API_BRANDS = {}   # brandId -> name
+QLD_API_SUBURBS = {}  # level1 geoRegionId -> name
+
+def _qld_api_meta():
+    if not QLD_API_BRANDS:
+        for b in _qld_api_get("/Subscriber/GetCountryBrands?countryId=21").get("Brands", []):
+            QLD_API_BRANDS[b["BrandId"]] = b["Name"]
+    if not QLD_API_SUBURBS:
+        for r in _qld_api_get("/Subscriber/GetCountryGeographicRegions?countryId=21").get("GeographicRegions", []):
+            if r["GeoRegionLevel"] == 1:
+                QLD_API_SUBURBS[r["GeoRegionId"]] = r["Name"]
+
+def qld_api_stations_sync():
+    """Real-time QLD: site details + latest price per site/fuel, joined on SiteId."""
+    global QLD_LAST_ERROR
+    _qld_api_meta()
+    sites = _qld_api_get("/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=3&geoRegionId=1").get("S", [])
+    prices = _qld_api_get("/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=1").get("SitePrices", [])
+    if not sites or not prices:
+        raise RuntimeError("qld api empty: %d sites %d prices" % (len(sites), len(prices)))
+    latest = {}  # (siteId, fuel) -> (ts, price)
+    for p in prices:
+        fuel = QLD_API_FUEL_MAP.get(p["FuelId"])
+        if not fuel:
+            continue
+        key = (p["SiteId"], fuel)
+        ts = p.get("TransactionDateUtc") or ""
+        prev = latest.get(key)
+        if not prev or str(ts) > str(prev[0]):
+            latest[key] = (ts, round(p["Price"] / 10.0, 1))  # API price is tenths of c/L
+    out = {}
+    for s in sites:
+        sid = s["S"]
+        if not s.get("Lat") or not s.get("Lng"):
+            continue
+        st = out.setdefault(sid, {
+            "id": "qld-%s" % sid,
+            "name": s.get("N"), "brand": QLD_API_BRANDS.get(s.get("B"), ""),
+            "address": s.get("A"), "suburb": QLD_API_SUBURBS.get(s.get("G1"), ""),
+            "postcode": str(s.get("P") or ""), "state": "QLD",
+            "lat": s["Lat"], "lng": s["Lng"], "prices": {},
+        })
+        for fuel in QLD_API_FUEL_MAP.values():
+            hit = latest.get((sid, fuel))
+            if hit:
+                cur = st["prices"].get(fuel)
+                if not cur or str(hit[0]) > str(cur["updated"]):
+                    st["prices"][fuel] = {"price": hit[1], "updated": hit[0]}
+    res = [s for s in out.values() if s["prices"]]
+    if not res:
+        raise RuntimeError("qld api join produced no priced stations")
+    QLD_LAST_ERROR = ""
+    return res
+
+def _qld_load_thread():
+    global QLD_LOADING, QLD_LAST_ERROR, QLD_SOURCE
+    try:
+        for attempt in range(4):
+            try:
+                if qld_api_available():
+                    QLD_CACHE["stations"] = qld_api_stations_sync()
+                    QLD_SOURCE = "api"
+                else:
+                    qld_stations_sync_legacy()
+                    QLD_SOURCE = "monthly"
+                if QLD_CACHE["stations"]:
+                    break
+            except Exception as e:  # noqa: BLE001
+                QLD_LAST_ERROR = "load: %r" % (e,)
+                if QLD_SOURCE == "api" or qld_api_available():
+                    try:  # API blip -> fall back to the monthly scrape
+                        qld_stations_sync_legacy()
+                        QLD_SOURCE = "monthly"
+                        if QLD_CACHE["stations"]:
+                            break
+                    except Exception as e2:  # noqa: BLE001
+                        QLD_LAST_ERROR = "load: %r / monthly: %r" % (e, e2)
+            time.sleep(20)
+    finally:
+        QLD_LOADING = False
 
 def _qld_probe():
     out = []
@@ -206,20 +305,6 @@ def qld_fetch_month(resource_id):
 
 QLD_LOADING = False
 
-def _qld_load_thread():
-    global QLD_LOADING, QLD_LAST_ERROR
-    try:
-        for attempt in range(4):
-            try:
-                qld_stations_sync()
-                if QLD_CACHE["stations"]:
-                    break
-            except Exception as e:  # noqa: BLE001
-                QLD_LAST_ERROR = "load: %r" % (e,)
-            time.sleep(20)  # data.qld throttles datacenter IPs; keep trying in background
-    finally:
-        QLD_LOADING = False
-
 def qld_stations():
     global QLD_LOADING
     now = time.time()
@@ -230,7 +315,7 @@ def qld_stations():
         threading.Thread(target=_qld_load_thread, daemon=True).start()
     return QLD_CACHE["stations"] or []  # don't block the request; loads in background
 
-def qld_stations_sync():
+def qld_stations_sync_legacy():
     now = time.time()
     prices, meta = {}, {}
     for (year, month), rid in qld_month_resources()[:4]:  # newest first; stop at first month that loads
@@ -521,6 +606,8 @@ class Handler(BaseHTTPRequestHandler):
                     "nsw_key": nsw_available(),
                     "nsw_cached": bool(NSW_CACHE["stations"]),
                     "qld_cached": len(QLD_CACHE["stations"] or []),
+                    "qld_source": QLD_SOURCE,
+                    "qld_age_s": int(time.time() - QLD_CACHE["ts"]) if QLD_CACHE["ts"] else None,
                     "qld_months": [list(k) for k in QLD_MONTHS_CACHE] if QLD_MONTHS_CACHE else [],
                     "qld_error": QLD_LAST_ERROR,
                     "qld_probe": _qld_probe(),
