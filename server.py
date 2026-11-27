@@ -594,7 +594,7 @@ class Handler(BaseHTTPRequestHandler):
                     A = resolve_place(frm)
                 B = resolve_place(to)
                 if not A or not B:
-                    body = json.dumps({"error": "could not resolve places"}).encode()
+                    body = json.dumps({"error": "could not resolve places (%s -> %s)" % (A, B)}).encode()
                     self._send(200, body, "application/json")
                     return
                 stations, total_km, path, picks = route_stations(A[:2], B[:2], fuel, detour)
