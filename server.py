@@ -458,7 +458,7 @@ def resolve_place(q):
     name = urllib.parse.quote(q)
     try:
         d = _get_json("https://nominatim.openstreetmap.org/search?format=json&countrycodes=au&limit=1&q=" + name,
-                      headers={"User-Agent": UA}, retries=1, timeout=15)
+                      headers={"User-Agent": "cheap-fuel-au/1.0 (fuel price web app)"}, retries=1, timeout=15)
         if d:
             return float(d[0]["lat"]), float(d[0]["lon"]), (d[0].get("display_name") or "")[:40]
     except Exception as e:  # noqa: BLE001
